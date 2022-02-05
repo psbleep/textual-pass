@@ -1,0 +1,2 @@
+pyperclip==1.8.2
+textual-inputs==0.2.4

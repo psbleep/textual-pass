@@ -1,21 +1,29 @@
 from unittest.mock import AsyncMock, Mock
+
 import pytest
 import pytest_asyncio
 from textual.keys import Keys
 
-from textual_pass.widgets import Search
+from textual_pass.widgets import Passwords, Search
+
+
+@pytest.fixture
+def passwords():
+    passwords = Passwords(app=Mock())
+    passwords.listing = ["foo", "bar", "hello", "world"]
+    return passwords
 
 
 @pytest_asyncio.fixture
-async def mock_app():
+async def async_mock_app():
     obj = AsyncMock()
     await obj.handle_key("hello")
     return obj
 
 
 @pytest_asyncio.fixture
-async def search(mock_app):
-    obj = Search(app=mock_app, name="search", title="search: ", value="foobar")
+async def search(async_mock_app):
+    obj = Search(app=async_mock_app, name="search", title="search: ", value="foobar")
     obj.cursor_position = 3
     return obj
 
@@ -50,7 +58,55 @@ async def test_search_clear_until_cursor_shortcut(search):
 
 
 @pytest.mark.asyncio
-async def test_search_unhandled_key(mock_app, search):
+async def test_search_unhandled_key(async_mock_app, search):
     event = Mock(key=Keys.ControlBackslash)
     await search.on_key(event)
-    mock_app.handle_key.assert_called_with(Keys.ControlBackslash)
+    async_mock_app.handle_key.assert_called_with(Keys.ControlBackslash)
+
+
+def test_passwords_get_focused_position(passwords):
+    assert passwords.focused_position == 0
+
+
+def test_passwords_set_focused_position(passwords):
+    passwords.focused_position = 2
+    assert passwords.focused_position == 2
+
+
+def test_passwords_set_focused_position_too_low(passwords):
+    passwords.focused_position = -1
+    assert passwords.focused_position == 0
+
+
+def test_passwords_set_focused_position_too_high(passwords):
+    passwords.focused_position = 4
+    assert passwords.focused_position == 3
+
+
+def test_passwords_set_focused_position_with_no_password_listing(passwords):
+    passwords.listing = []
+    passwords.focused_position = 2
+    assert passwords.focused_position == 0
+
+
+def test_passwords_get_focused_password(passwords):
+    passwords.focused_position = 2
+    assert passwords.get_focused_password() == "hello"
+
+
+def test_passwords_set_focused_position_to_password(passwords):
+    passwords.set_focused_position_to_password("world")
+    assert passwords.focused_position == 3
+
+
+def test_passwords_set_focused_position_to_password_that_is_not_listed(passwords):
+    passwords.set_focused_position_to_password("zoo")
+    assert passwords.focused_position == 3
+
+
+def test_passwords_render_displays_password_listing_and_highlights_focused_password(
+    passwords,
+):
+    passwords.focused_position = 1
+    rendered_panel = passwords.render()
+    assert rendered_panel.renderable == "foo\n[bold]bar[/bold]\nhello\nworld"

@@ -50,7 +50,7 @@ class Search(TextInput):
 
 
 class Passwords(Widget):
-    _focused: Reactive[int] = Reactive(0)
+    _focused_position: Reactive[int] = Reactive(0)
     listing: Reactive[List[str]] = Reactive([])
 
     def __init__(self, app, *args, **kwargs) -> None:
@@ -58,29 +58,29 @@ class Passwords(Widget):
         self._app = app
 
     @property
-    def focused(self) -> int:
-        return self._focused
+    def focused_position(self) -> int:
+        return self._focused_position
 
-    @focused.setter
-    def focused(self, value: int) -> None:
+    @focused_position.setter
+    def focused_position(self, value: int) -> None:
         if value < 0:
-            self._focused = 0
+            self._focused_position = 0
             return
 
-        self._focused = min([self.max_focused, value])
+        self._focused_position = min([self._max_focused_position, value])
 
     @property
-    def max_focused(self) -> int:
+    def _max_focused_position(self) -> int:
         return max(0, len(self.listing) - 1)
 
     def get_focused_password(self) -> Optional[str]:
-        return self.listing[self.focused]
+        return self.listing[self.focused_position]
 
-    def set_focus_position_to_password(self, password: str) -> None:
+    def set_focused_position_to_password(self, password: str) -> None:
         try:
-            self.focused = self.listing.index(password)
+            self.focused_position = self.listing.index(password)
         except ValueError:
-            self.focused = self.max_focused
+            self.focused_position = self._max_focused_position
 
     def render(self) -> Panel:
         output_lines = self._get_output_lines()
@@ -89,7 +89,7 @@ class Passwords(Widget):
     def _get_output_lines(self) -> List[str]:
         output_lines = []
         for idx, line in enumerate(self.listing):
-            if idx == self.focused:
+            if idx == self.focused_position:
                 line = f"[bold]{line}[/bold]"
             output_lines.append(line)
         return output_lines

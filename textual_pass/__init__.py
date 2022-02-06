@@ -21,6 +21,7 @@ store = PasswordStore(PASSWORD_STORE_DIR)
 class Tpass(App):
     async def on_load(self) -> None:
         await self.bind("j", "move_focus_down")
+        await self.bind("ctrl+x", "clear_search_term")
         await self.bind("k", "move_focus_up")
         await self.bind("i", "search_mode")
         await self.bind("q", "quit")
@@ -33,6 +34,10 @@ class Tpass(App):
 
     async def action_move_focus_down(self) -> None:
         self.passwords.focused += 1
+
+    async def action_clear_search_term(self) -> None:
+        self.search._cursor_position = 0
+        self.search.value = ""
 
     async def on_mount(self) -> None:
         self.search = Search(app=self, name="search", title="search: ")
@@ -57,9 +62,14 @@ class Tpass(App):
         await self.set_normal_mode()
 
     async def handle_search_on_change(self, message: Message) -> None:
+        try:
+            previously_focused_password = self.passwords.get_focused_password()
+        except IndexError:
+            previously_focused_password = ""
         search_term = message.sender.value
         listing = store.search(search_term)
         self.passwords.listing = listing
+        self.passwords.set_focus_position_to_password(previously_focused_password)
 
     async def set_search_mode(self) -> None:
         await self.search.focus()
@@ -71,9 +81,9 @@ class Tpass(App):
         if key == Keys.Enter:
             await self.open_password()
             await self.set_normal_mode()
-        elif key == Keys.Up:
+        elif key in (Keys.Up, Keys.ControlK):
             await self.action_move_focus_up()
-        elif key == Keys.Down:
+        elif key in (Keys.Down, Keys.ControlJ):
             await self.action_move_focus_down()
         elif key == Keys.ControlO:
             await self.open_password(otp=True, clip=True)
@@ -83,6 +93,8 @@ class Tpass(App):
         elif key == Keys.ControlY:
             await self.open_password(clip=True)
             await self.set_normal_mode()
+        elif key == Keys.ControlQ:
+            await self.action_quit()
         elif key == Keys.Escape:
             await self.set_normal_mode()
 
@@ -96,6 +108,7 @@ class Tpass(App):
             password = self.passwords.get_focused_password()
         except IndexError:
             return
+
         if otp:
             output = store.show_otp(password)
         else:

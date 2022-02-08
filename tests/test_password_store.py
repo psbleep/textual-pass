@@ -4,21 +4,20 @@ from unittest.mock import Mock
 
 import pytest
 
+from textual_pass import PASSWORD_STORE_DIR
 from textual_pass.password_store import SUBPROCESS_RUN_OPTIONS, PasswordStore
-
-from . import TEST_STORE_DIR
 
 
 @pytest.fixture(autouse=True)
 def use_test_store(request):
     def _cleanup():
-        if os.path.exists(TEST_STORE_DIR):
-            shutil.rmtree(TEST_STORE_DIR)
+        if os.path.exists(PASSWORD_STORE_DIR):
+            shutil.rmtree(PASSWORD_STORE_DIR)
 
     _cleanup()
     request.addfinalizer(_cleanup)
 
-    os.makedirs(TEST_STORE_DIR, exist_ok=True)
+    os.makedirs(PASSWORD_STORE_DIR, exist_ok=True)
     for test_file in [
         "foo.txt",
         "a.gpg",
@@ -27,7 +26,7 @@ def use_test_store(request):
         "c/b/3.gpg",
         "c/d/4.gpg",
     ]:
-        file_path = os.path.join(TEST_STORE_DIR, test_file)
+        file_path = os.path.join(PASSWORD_STORE_DIR, test_file)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "w") as f:
             f.write("")
@@ -35,7 +34,7 @@ def use_test_store(request):
 
 @pytest.fixture
 def store():
-    return PasswordStore(TEST_STORE_DIR)
+    return PasswordStore(PASSWORD_STORE_DIR)
 
 
 def test_search_returns_all_passwords_with_empty_search_term(store):

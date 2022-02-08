@@ -95,7 +95,7 @@ class Passwords(Widget):
         return output_lines
 
 
-class Output(Widget):
+class Console(Widget):
     output: Reactive[str] = Reactive("")
 
     def render(self) -> Panel:

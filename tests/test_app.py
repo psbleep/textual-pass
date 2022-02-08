@@ -9,8 +9,8 @@ from textual_pass.app import App
 @pytest_asyncio.fixture
 async def app():
     obj = App()
-    obj.store = Mock()
-    obj.passwords = Mock()
+    obj._store = Mock()
+    obj._passwords = Mock()
     return obj
 
 

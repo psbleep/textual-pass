@@ -1,8 +1,9 @@
-from . import Tpass
+from .app import App
 
 
 def main():
-    Tpass.run()
+    app = App()
+    app.run()
 
 
 if __name__ == "__main__":

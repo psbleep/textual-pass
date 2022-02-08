@@ -9,22 +9,16 @@ from textual_pass.widgets import Passwords, Search
 
 @pytest.fixture
 def passwords():
-    passwords = Passwords(app=Mock())
+    passwords = Passwords()
     passwords.listing = ["foo", "bar", "hello", "world"]
     return passwords
 
 
 @pytest_asyncio.fixture
-async def async_mock_app():
-    obj = AsyncMock()
-    await obj.handle_key("hello")
-    return obj
-
-
-@pytest_asyncio.fixture
-async def search(async_mock_app):
-    obj = Search(app=async_mock_app, name="search", title="search: ", value="foobar")
+async def search():
+    obj = Search(name="search", title="search: ", value="foobar")
     obj.cursor_position = 3
+    obj._emit_on_change = AsyncMock()
     return obj
 
 
@@ -33,6 +27,7 @@ async def test_search_beginning_of_line_shortcut(search):
     event = Mock(key=Keys.ControlA)
     await search.on_key(event)
     assert search.cursor_position == 0
+    search._emit_on_change.assert_called_with(event)
 
 
 @pytest.mark.asyncio
@@ -40,6 +35,7 @@ async def test_search_end_of_line_shortcut(search):
     event = Mock(key=Keys.ControlE)
     await search.on_key(event)
     assert search.cursor_position == 6
+    search._emit_on_change.assert_called_with(event)
 
 
 @pytest.mark.asyncio
@@ -47,6 +43,7 @@ async def test_search_clear_after_cursor_shortcut(search):
     event = Mock(key=Keys.ControlK)
     await search.on_key(event)
     assert search.value == "foo"
+    search._emit_on_change.assert_called_with(event)
 
 
 @pytest.mark.asyncio
@@ -55,13 +52,14 @@ async def test_search_clear_until_cursor_shortcut(search):
     await search.on_key(event)
     assert search.value == "bar"
     assert search.cursor_position == 0
+    search._emit_on_change.assert_called_with(event)
 
 
 @pytest.mark.asyncio
-async def test_search_unhandled_key(async_mock_app, search):
+async def test_search_unhandled_key(search):
     event = Mock(key=Keys.ControlBackslash)
     await search.on_key(event)
-    async_mock_app.handle_key.assert_called_with(Keys.ControlBackslash)
+    search._emit_on_change.assert_not_called()
 
 
 def test_passwords_get_focused_position(passwords):

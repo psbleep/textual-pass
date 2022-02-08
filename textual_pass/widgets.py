@@ -1,17 +1,20 @@
 from typing import List, Optional
 
 from rich.panel import Panel
-from textual.events import Event
 from textual.keys import Keys
+from textual.events import Event
 from textual.reactive import Reactive
 from textual.widget import Widget
 from textual_inputs import TextInput
 
 
 class Search(TextInput):
-    def __init__(self, app, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._app = app
+    _KEY_MAP = {
+        Keys.ControlA: "_move_cursor_to_beginning_of_line",
+        Keys.ControlE: "_move_cursor_to_end_of_line",
+        Keys.ControlK: "_clear_text_after_cursor",
+        Keys.ControlU: "_clear_text_before_cursor",
+    }
 
     @property
     def cursor_position(self) -> int:
@@ -22,40 +25,37 @@ class Search(TextInput):
         self._cursor_position = position
 
     async def on_key(self, event: Event) -> None:
-        handled = await self._handle_on_key(event)
-        if handled:
+        was_handled = await self._handle_key(event.key)
+        if was_handled:
             await self._emit_on_change(event)
-        else:
-            await self._app.handle_key(event.key)
 
-    async def _handle_on_key(self, event: Event) -> bool:
-        if event.key == Keys.ControlA:
-            self._cursor_position = 0
-        elif event.key == Keys.ControlE:
-            self._cursor_position = len(self.value)
-        elif event.key == Keys.ControlK:
-            self.value = self.value[: self._cursor_position]
-        elif event.key == Keys.ControlU:
-            self.value = self.value[self._cursor_position :]
-            self._cursor_position = 0
-        else:
+    async def _handle_key(self, key: Keys) -> bool:
+        try:
+            method_name = self._KEY_MAP[key]
+        except KeyError:
             return False
 
+        method = getattr(self, method_name)
+        await method()
         return True
 
-    async def clear_search_term(self, event: Event) -> None:
+    async def _move_cursor_to_beginning_of_line(self):
         self._cursor_position = 0
-        self.value = ""
-        await self._emit_on_change(event)
+
+    async def _move_cursor_to_end_of_line(self):
+        self._cursor_position = len(self.value)
+
+    async def _clear_text_after_cursor(self):
+        self.value = self.value[: self._cursor_position]
+
+    async def _clear_text_before_cursor(self):
+        self.value = self.value[self._cursor_position :]
+        self._cursor_position = 0
 
 
 class Passwords(Widget):
     _focused_position: Reactive[int] = Reactive(0)
     listing: Reactive[List[str]] = Reactive([])
-
-    def __init__(self, app, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._app = app
 
     @property
     def focused_position(self) -> int:
@@ -93,9 +93,6 @@ class Passwords(Widget):
                 line = f"[bold]{line}[/bold]"
             output_lines.append(line)
         return output_lines
-
-    async def on_key(self, event: Event) -> None:
-        await self._app.handle_key(event.key)
 
 
 class Output(Widget):

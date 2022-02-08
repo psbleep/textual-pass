@@ -1,6 +1,5 @@
 import pyperclip
 from textual.app import App as TextualApp
-from textual.keys import Keys
 from textual.message import Message
 
 from . import PASSWORD_STORE_DIR
@@ -9,33 +8,13 @@ from .widgets import Output, Passwords, Search
 
 
 class App(TextualApp):
-    async def on_load(self) -> None:
-        await self.bind("j", "move_focus_down")
-        await self.bind("ctrl+x", "clear_search_term")
-        await self.bind("k", "move_focus_up")
-        await self.bind("i", "search_mode")
-        await self.bind("q", "quit")
-
-    async def action_search_mode(self) -> None:
-        await self.set_search_mode()
-
-    async def action_move_focus_up(self) -> None:
-        self.passwords.focused_position -= 1
-
-    async def action_move_focus_down(self) -> None:
-        self.passwords.focused_position += 1
-
-    async def action_clear_search_term(self) -> None:
-        self.search._cursor_position = 0
-        self.search.value = ""
-
     async def on_mount(self) -> None:
         self.store = PasswordStore(PASSWORD_STORE_DIR)
 
-        self.search = Search(app=self, name="search", title="search: ")
+        self.search = Search(name="search", title="search: ")
         self.search.on_change_handler_name = "handle_search_on_change"
 
-        self.passwords = Passwords(app=self)
+        self.passwords = Passwords()
         self.passwords.listing = self.store.search()
 
         self.output = Output()
@@ -63,39 +42,41 @@ class App(TextualApp):
         self.passwords.listing = listing
         self.passwords.set_focused_position_to_password(previously_focused_password)
 
-    async def set_search_mode(self) -> None:
-        await self.search.focus()
+    async def on_load(self) -> None:
+        await self.bind("j,down", "move_focus_down")
+        await self.bind("k,up", "move_focus_up")
+        await self.bind("i", "search_mode")
+        await self.bind("q,ctrl+q", "quit")
+        await self.bind("ctrl+o", "open_password('otp','clip')")
+        await self.bind("ctrl+s", "sync_store")
+        await self.bind("ctrl+x", "clear_search_term")
+        await self.bind("ctrl+y", "open_password('','clip')")
+        await self.bind("escape", "normal_mode")
+        await self.bind("enter", "open_password")
 
-    async def set_normal_mode(self) -> None:
-        await self.passwords.focus()
+    async def action_search_mode(self) -> None:
+        await self.set_search_mode()
 
-    async def handle_key(self, key: Keys) -> None:
-        if key == Keys.Enter:
-            await self.open_password()
-            await self.set_normal_mode()
-        elif key in (Keys.Up, Keys.ControlK):
-            await self.action_move_focus_up()
-        elif key in (Keys.Down, Keys.ControlJ):
-            await self.action_move_focus_down()
-        elif key == Keys.ControlO:
-            await self.open_password(otp=True, clip=True)
-            await self.set_normal_mode()
-        elif key == Keys.ControlS:
-            await self.sync_store()
-        elif key == Keys.ControlY:
-            await self.open_password(clip=True)
-            await self.set_normal_mode()
-        elif key == Keys.ControlQ:
-            await self.action_quit()
-        elif key == Keys.Escape:
-            await self.set_normal_mode()
+    async def action_normal_mode(self) -> None:
+        await self.set_normal_mode()
 
-    async def sync_store(self) -> None:
+    async def action_move_focus_up(self) -> None:
+        self.passwords.focused_position -= 1
+
+    async def action_move_focus_down(self) -> None:
+        self.passwords.focused_position += 1
+
+    async def action_clear_search_term(self) -> None:
+        self.search.cursor_position = 0
+        self.search.value = ""
+        self.passwords.listing = self.store.search()
+
+    async def action_sync_store(self) -> None:
         pull_output = self.store.git_pull()
         push_output = self.store.git_push()
         self.output.output = f"{pull_output}\n{push_output}"
 
-    async def open_password(self, otp=False, clip=False) -> None:
+    async def action_open_password(self, otp: str = "", clip: str = "") -> None:
         try:
             password = self.passwords.get_focused_password()
         except IndexError:
@@ -120,3 +101,10 @@ class App(TextualApp):
                 output = other
 
         self.output.output = output
+        await self.set_normal_mode()
+
+    async def set_search_mode(self) -> None:
+        await self.search.focus()
+
+    async def set_normal_mode(self) -> None:
+        await self.passwords.focus()

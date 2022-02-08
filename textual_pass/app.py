@@ -4,7 +4,7 @@ from textual.message import Message
 
 from . import PASSWORD_STORE_DIR
 from .password_store import PasswordStore
-from .widgets import Console, Passwords, Search
+from .widgets import Console, ConsolePrompt, Passwords, Search
 
 
 class App(TextualApp):
@@ -44,6 +44,9 @@ class App(TextualApp):
         self._passwords.listing = listing
         self._passwords.set_focused_position_to_password(previously_focused_password)
 
+    async def handle_generate_password_input(self, message: Message) -> None:
+        pass
+
     async def on_load(self) -> None:
         await self.bind("j,down", "move_focus_down")
         await self.bind("k,up", "move_focus_up")
@@ -55,12 +58,16 @@ class App(TextualApp):
         await self.bind("ctrl+y", "open_password('','clip')")
         await self.bind("escape", "normal_mode")
         await self.bind("enter", "open_password")
+        await self.bind("ctrl+a", "console_mode('hello', 'goodbye')")
 
     async def action_search_mode(self) -> None:
         await self.set_search_mode()
 
     async def action_normal_mode(self) -> None:
         await self.set_normal_mode()
+
+    async def action_console_mode(self) -> None:
+        await self.set_console_mode()
 
     async def action_move_focus_up(self) -> None:
         self._passwords.focused_position -= 1
@@ -110,3 +117,13 @@ class App(TextualApp):
 
     async def set_normal_mode(self) -> None:
         await self._passwords.focus()
+
+    async def set_console_mode(self) -> None:
+        self._console.set_prompts(
+            self._finish_console_mode, ConsolePrompt("hello"), ConsolePrompt("goodbye")
+        )
+        await self._console.focus()
+
+    async def _finish_console_mode(self, *prompts) -> None:
+        self._console.output = "\n".join([p.response for p in prompts])
+        await self.set_normal_mode()

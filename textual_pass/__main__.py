@@ -1,8 +1,8 @@
-from .app import App
+from .app import TPassApp
 
 
 def main():
-    app = App()
+    app = TPassApp()
     app.run()
 
 

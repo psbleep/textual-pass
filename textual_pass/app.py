@@ -1,5 +1,5 @@
 import pyperclip
-from textual.app import App as TextualApp
+from textual.app import App
 from textual.message import Message
 
 from . import PASSWORD_STORE_DIR
@@ -7,7 +7,7 @@ from .password_store import PasswordStore
 from .widgets import Console, InputPrompt, Passwords, Search
 
 
-class App(TextualApp):
+class TPassApp(App):
     async def on_mount(self) -> None:
         self._store = PasswordStore(PASSWORD_STORE_DIR)
 

@@ -3,12 +3,12 @@ from unittest.mock import Mock
 import pytest
 import pytest_asyncio
 
-from textual_pass.app import App
+from textual_pass.app import TPassApp
 
 
 @pytest_asyncio.fixture
 async def app():
-    obj = App()
+    obj = TPassApp()
     obj._store = Mock()
     obj._passwords = Mock()
     return obj

@@ -8,7 +8,14 @@ from textual.widget import Widget
 from textual_inputs import TextInput
 
 
-class HandleKeyMixin:
+class PromptShortcutsMixin:
+    _SHORTCUTS_MAP = {
+        Keys.ControlA: "_move_cursor_to_beginning_of_line",
+        Keys.ControlE: "_move_cursor_to_end_of_line",
+        Keys.ControlK: "_clear_text_after_cursor",
+        Keys.ControlU: "_clear_text_before_cursor",
+    }
+
     async def on_key(self, event: Event) -> None:
         was_handled = await self._handle_key(event.key)
         if was_handled:
@@ -16,30 +23,13 @@ class HandleKeyMixin:
 
     async def _handle_key(self, key: Keys) -> bool:
         try:
-            method_name = self._KEY_MAP[key]
+            method_name = self._SHORTCUTS_MAP[key]
         except KeyError:
             return False
 
         method = getattr(self, method_name)
         await method()
         return True
-
-
-class Search(HandleKeyMixin, TextInput):
-    _KEY_MAP = {
-        Keys.ControlA: "_move_cursor_to_beginning_of_line",
-        Keys.ControlE: "_move_cursor_to_end_of_line",
-        Keys.ControlK: "_clear_text_after_cursor",
-        Keys.ControlU: "_clear_text_before_cursor",
-    }
-
-    @property
-    def cursor_position(self) -> int:
-        return self._cursor_position
-
-    @cursor_position.setter
-    def cursor_position(self, position: int) -> None:
-        self._cursor_position = position
 
     async def _move_cursor_to_beginning_of_line(self):
         self._cursor_position = 0
@@ -53,6 +43,16 @@ class Search(HandleKeyMixin, TextInput):
     async def _clear_text_before_cursor(self):
         self.value = self.value[self._cursor_position :]
         self._cursor_position = 0
+
+
+class Search(PromptShortcutsMixin, TextInput):
+    @property
+    def cursor_position(self) -> int:
+        return self._cursor_position
+
+    @cursor_position.setter
+    def cursor_position(self, position: int) -> None:
+        self._cursor_position = position
 
 
 class Passwords(Widget):
@@ -97,7 +97,7 @@ class Passwords(Widget):
         return output_lines
 
 
-class ConsolePrompt:
+class _ConsolePrompt:
     def __init__(
         self,
         prompt: str,
@@ -131,53 +131,51 @@ class ConsolePrompt:
         return valid, error_msg
 
 
-class Console(HandleKeyMixin, Widget):
-    _KEY_MAP = {Keys.Enter: "_save_active_prompt"}
-
-    output: Reactive[str] = Reactive("")
+class InputPrompt(PromptShortcutsMixin, TextInput):
+    _active: Reactive[bool] = Reactive(False)
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._callback = None
-        self._active_prompt = None
-        self._pending_prompts = []
-        self._completed_prompts = []
+        self._SHORTCUTS_MAP["enter"] = "_teardown"
 
-    def set_prompts(self, callback, *prompts) -> None:
+    def setup(
+        self,
+        name: str,
+        title: str,
+        callback: Optional[Callable] = None,
+        parse: Optional[Callable] = None,
+        validate: Optional[Callable] = None,
+    ) -> None:
+        self.name = name
+        self.title = title
+
         self._callback = callback
-        self._active_prompt = prompts[0]
-        self._pending_prompts = prompts[1:]
-        self._completed_prompts = []
-        self.output += " "
+        self._parse = parse
+        self._validate = validate
 
-    async def on_key(self, event: Event) -> None:
-        was_handled = self._active_prompt(event.key)
-        if was_handled:
-            event.stop()
-            self.output += " "
+        self._active = True
 
-    async def _save_active_prompt(self) -> None:
-        saved, error_msg = self._active_prompt.save()
-        if not saved:
-            self.output += f"\n{self._active_prompt}\n{error_msg}\n"
-            return
+    async def _teardown(self) -> None:
+        value = self.value
+        if self._parse:
+            value = self._parse(value)
+        if self._validate:
+            valid, error_msg = self._validate(value)
+            if not valid:
+                return
 
-        self.output += f"\n{self._active_prompt}"
-        self._completed_prompts.append(self._active_prompt)
-        if self._pending_prompts:
-            self._active_prompt = self._pending_prompts[0]
-            self._pending_prompts = self._pending_prompts[1:]
-        else:
-            self._active_prompt = None
-            await self._callback(*self._completed_prompts)
-            self._callback = None
-            self._completed_prompts = []
+        if self._callback:
+            await self._callback(title=self.title, value=value)
+        self._active = False
 
     def render(self) -> Panel:
-        output = self.output
-        if self._active_prompt:
-            output += f"\n{self._active_prompt}"
-        return Panel(output)
+        if not self._active:
+            return ""
+        return super().render()
 
-    async def _emit_on_change(self, event):
-        event.stop()
+
+class Console(Widget):
+    output: Reactive[str] = Reactive("")
+
+    def render(self) -> Panel:
+        return Panel(self.output)

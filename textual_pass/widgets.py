@@ -3,9 +3,10 @@ from typing import Callable, List, Optional, Tuple
 from rich.panel import Panel
 from textual.events import Event
 from textual.keys import Keys
+from textual.message import Message
 from textual.reactive import Reactive
 from textual.widget import Widget
-from textual_inputs import TextInput
+from textual_inputs import IntegerInput, TextInput
 
 
 class PromptShortcutsMixin:
@@ -97,85 +98,56 @@ class Passwords(Widget):
         return output_lines
 
 
-class _ConsolePrompt:
+class InvalidConsoleInput(Message):
+    pass
+
+
+class ConsoleInputMixin:
     def __init__(
         self,
-        prompt: str,
-        response: str = "",
-        parse: Optional[Callable] = None,
-        validate: Optional[Callable] = None,
+        success_message_cls: Message,
+        parse: Callable = lambda resp: resp,
+        validate: Callable = lambda _: (True, ""),
+        *args,
+        **kwargs,
     ) -> None:
-        self.prompt = prompt
-        self.response = response
-        self.parse = parse
-        self.validate = validate
-
-    def __call__(self, key: Keys) -> None:
-        self.response += key
-        return True
-
-    def __str__(self) -> str:
-        return f"{self.prompt}: {self.response}"
-
-    def save(self) -> Tuple[bool, Optional[str]]:
-        if self.parse:
-            self.response = self.parse(self.response)
-
-        if self.validate:
-            valid, error_msg = self.validate(self.response)
-            if not valid:
-                self.response = ""
-        else:
-            valid, error_msg = True, None
-
-        return valid, error_msg
-
-
-class InputPrompt(PromptShortcutsMixin, TextInput):
-    _active: Reactive[bool] = Reactive(False)
-
-    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._SHORTCUTS_MAP["enter"] = "_teardown"
-
-    def setup(
-        self,
-        name: str,
-        title: str,
-        callback: Optional[Callable] = None,
-        parse: Optional[Callable] = None,
-        validate: Optional[Callable] = None,
-    ) -> None:
-        self.name = name
-        self.title = title
-
-        self._callback = callback
+        self._success_msg_cls = success_message_cls
         self._parse = parse
         self._validate = validate
 
-        self._active = True
+    async def save(self) -> Tuple[bool, str]:
+        self.response = self._parse(self.response)
+        success, error_message = self._validate(self.response)
+        if not success:
+            self.error_message = error_message
+            return await self.emit(InvalidConsoleInput(self))
+        else:
+            await self.emit(self._success_msg_cls(self))
 
-    async def _teardown(self) -> None:
-        value = self.value
-        if self._parse:
-            value = self._parse(value)
-        if self._validate:
-            valid, error_msg = self._validate(value)
-            if not valid:
-                return
+    def __str__(self) -> str:
+        return f"{self.title}: {self.value}"
 
-        if self._callback:
-            await self._callback(title=self.title, value=value)
-        self._active = False
 
-    def render(self) -> Panel:
-        if not self._active:
-            return ""
-        return super().render()
+class ConsoleTextInput(ConsoleInputMixin, TextInput):
+    pass
+
+
+class ConsoleIntegerInput(ConsoleInputMixin, IntegerInput):
+    pass
 
 
 class Console(Widget):
+    _refresh: Reactive[bool] = Reactive(False)
     output: Reactive[str] = Reactive("")
+    prompt: Reactive[Optional[ConsoleTextInput]] = Reactive(None)
+
+    async def on_key(self, *args, **kwargs):
+        await self.prompt.on_key(*args, **kwargs)
+        self._refresh = not self._refresh
 
     def render(self) -> Panel:
-        return Panel(self.output)
+        output = self.output
+        if self.prompt:
+            output += f"\n{self.prompt}"
+        return Panel(output)

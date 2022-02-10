@@ -3,7 +3,7 @@ from .app import TPassApp
 
 def main():
     app = TPassApp()
-    app.run()
+    app.run(title="TPass", log="textual.log")
 
 
 if __name__ == "__main__":

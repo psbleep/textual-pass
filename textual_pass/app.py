@@ -4,7 +4,7 @@ from textual.message import Message
 
 from . import PASSWORD_STORE_DIR
 from .password_store import PasswordStore
-from .widgets import Console, InputPrompt, Passwords, Search
+from .widgets import Console, ConsoleTextInput, Passwords, Search
 
 
 class TPassApp(App):
@@ -18,24 +18,21 @@ class TPassApp(App):
         self._passwords.listing = self._store.search()
 
         self._console = Console()
-        self._prompt = InputPrompt()
 
         self.grid = await self.view.dock_grid(edge="left", name="left")
         self.grid.add_column("col", repeat=2)
         self.grid.add_row("top", size=3)
-        self.grid.add_row("body", repeat=2)
+        self.grid.add_row("body")
         self.grid.add_areas(
             search="col1-start|col2-end,top",
-            passwords="col1,body1-start|body2-end",
-            console="col2,body1",
-            prompt="col2,body2",
+            passwords="col1,body",
+            console="col2,body",
         )
 
         self.grid.place(
             search=self._search,
             passwords=self._passwords,
             console=self._console,
-            prompt=self._prompt,
         )
         await self.set_normal_mode()
 
@@ -124,15 +121,13 @@ class TPassApp(App):
         await self._passwords.focus()
 
     async def set_console_mode(self) -> None:
-        self._prompt.setup(
-            name="hello",
-            title="hello",
-            callback=self._foobar,
-            parse=lambda inp: inp[0],
-            validate=lambda inp: (inp == "y", ""),
-        )
-        await self._prompt.focus()
+        class Foobar(Message):
+            pass
 
-    async def _foobar(self, title, value) -> None:
-        self._console.output = f"{title}{value}"
-        await self.set_normal_mode()
+        self._console.prompt = ConsoleTextInput(
+            name="foo", title="foo", success_message_cls=Foobar
+        )
+        await self._console.focus()
+
+    async def handle_foobar(self, message: Message) -> None:
+        self._console.output += "\nfoobar"
